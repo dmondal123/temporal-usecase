@@ -57,6 +57,12 @@ class CustomParams:
     # Add any necessary parameters for the custom activity
     pass
 
+@dataclass
+class CalculatorParams:
+    operation: str  # "add", "subtract", "multiply", "divide"
+    a: float
+    b: float
+
 @observe
 @activity.defn
 async def llm_call(params: LLMState) -> dict:
@@ -186,6 +192,19 @@ async def schedule_tool(params: ScheduleParams) -> str:
     return "Reminder task done"
 
 @activity.defn
-async def my_custom_activity(params: CustomParams) -> str:
-    # Activity implementation
-    return "Activity result"
+async def my_custom_activity(params: CalculatorParams) -> str:
+    """Performs basic arithmetic operations."""
+    if params.operation == "add":
+        result = params.a + params.b
+    elif params.operation == "subtract":
+        result = params.a - params.b
+    elif params.operation == "multiply":
+        result = params.a * params.b
+    elif params.operation == "divide":
+        if params.b == 0:
+            return "Error: Cannot divide by zero"
+        result = params.a / params.b
+    else:
+        return f"Error: Unknown operation '{params.operation}'"
+    
+    return f"Result of {params.a} {params.operation} {params.b} = {result}"

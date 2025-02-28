@@ -3,7 +3,7 @@ import json
 from typing import Union
 
 from temporalio import workflow
-from tools import send_operator_message, send_agents_message, schedule_reminder, wait_for_assistance, tasks_done
+from tools import send_operator_message, send_agents_message, schedule_reminder, wait_for_assistance, tasks_done, calculator_tool
 with workflow.unsafe.imports_passed_through():
     from temporalio.common import datetime 
     from langfuse.decorators import observe
@@ -40,24 +40,26 @@ class BaseAgentWorkflow:
         system_message = agent_config["system_msg"]
         self.input_message_queue = []
         self.user_id = params.user_id
-        self.tools = [
-            send_agents_message(list(agents.keys())),
-            send_operator_message(language),
-            schedule_reminder(),
-            wait_for_assistance(),
-            tasks_done()
-        ]
         self.llm_state = LLMState(
-        user_id=params.user_id,
-        persona_type=agent_type,
-        run_id=params.run_id,
-        messages=[],
-        system_message=system_message,
-        tools=self.tools,
-        agents=agents,
-        language=language
+            user_id=params.user_id,
+            persona_type=agent_type,
+            run_id=params.run_id,
+            messages=[],
+            system_message=system_message,
+            tools=[
+                send_agents_message(list(agents.keys())),
+                send_operator_message(language),
+                schedule_reminder(),
+                wait_for_assistance(),
+                tasks_done()
+            ],
+            agents=agents,
+            language=language
         )
         print("BaseAgentWorkflow initialized.")
+        
+        # Register the calculator tool using register_tool method
+        self.register_tool(calculator_tool())
     
     def register_tool(self, tool: dict) -> None:
         """Register a new tool with the workflow agent.
@@ -71,10 +73,10 @@ class BaseAgentWorkflow:
                 }
         """
         # Add tool to tools list
-        self.tools.append(tool)
+        self.llm_state.tools.append(tool)
         
         # Update LLM state tools
-        self.llm_state.tools = self.tools
+        self.llm_state.tools = self.llm_state.tools
         
         print(f"Registered new tool: {tool['name']}")
 

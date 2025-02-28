@@ -55,4 +55,29 @@ def my_custom_tool() -> dict:
         }
     }
 
+def calculator_tool() -> dict:
+    return {
+        "name": "calculator",
+        "description": "Performs basic arithmetic calculations including addition, subtraction, multiplication, and division.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "operation": {
+                    "type": "string",
+                    "description": "The arithmetic operation to perform: add, subtract, multiply, or divide",
+                    "enum": ["add", "subtract", "multiply", "divide"]
+                },
+                "a": {
+                    "type": "number",
+                    "description": "The first number in the calculation"
+                },
+                "b": {
+                    "type": "number",
+                    "description": "The second number in the calculation"
+                }
+            },
+            "required": ["operation", "a", "b"]
+        }
+    }
+
 
