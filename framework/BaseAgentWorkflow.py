@@ -3,7 +3,8 @@ import json
 from typing import Union
 
 from temporalio import workflow
-from tools import send_operator_message, send_agents_message, schedule_reminder, wait_for_assistance, tasks_done, calculator_tool
+from tools import send_operator_message, send_agents_message, schedule_reminder, tasks_done, calculator_tool
+from wait_for_assistance import wait_for_assistance
 with workflow.unsafe.imports_passed_through():
     from temporalio.common import datetime 
     from langfuse.decorators import observe

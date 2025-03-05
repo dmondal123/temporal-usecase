@@ -7,11 +7,6 @@ def send_agents_message():
       "AgentMessage": {
         "properties": {
           "to_id": {
-            "enum": [
-              "agent1",
-              "agent2",
-              "agent3"
-            ],
             "title": "To Id",
             "type": "string"
           },
