@@ -3,7 +3,7 @@ import os
 from temporalio.client import Client
 from temporalio.worker import Worker
 from BaseAgentWorkflow import BaseAgentWorkflow
-from activities import llm_call, send_message_to_agent_tool, schedule_tool
+from activities import llm_call, send_message_to_agent_tool, schedule_tool, calculator
 
 def ensure_dir(file_path):
     directory = os.path.dirname(file_path)
@@ -45,7 +45,7 @@ class BaseAgent:
             client,
             task_queue=self.user_id + "-queue",
             workflows=[BaseAgentWorkflow],
-            activities=[llm_call, send_message_to_agent_tool, schedule_tool],
+            activities=[llm_call, send_message_to_agent_tool, schedule_tool, calculator],
         )
         print(f"Task queue: {self.user_id}-queue")
         print("\nWorker started, ctrl+c to exit\n")

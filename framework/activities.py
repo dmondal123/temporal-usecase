@@ -193,7 +193,7 @@ async def schedule_tool(params: ScheduleParams) -> str:
     return "Reminder task done"
 
 @activity.defn
-async def my_custom_activity(params: CalculatorParams) -> str:
+async def calculator(params: CalculatorParams) -> str:
     """Performs basic arithmetic operations."""
     if params.operation == "add":
         params.output = params.a + params.b

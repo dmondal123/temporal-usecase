@@ -3,7 +3,7 @@ import json
 from typing import Union
 
 from temporalio import workflow
-from tools import send_operator_message, send_agents_message, schedule_reminder, tasks_done, calculator_tool
+from tools import send_operator_message, send_agents_message, schedule_reminder, tasks_done
 from wait_for_assistance import wait_for_assistance
 with workflow.unsafe.imports_passed_through():
     from temporalio.common import datetime 
@@ -23,7 +23,7 @@ InvocationParams,
 CalculatorParams
 )
 
-from tool_2 import send_agents_message
+from calculator_tool import calculator_tool
 
 def read_json(file_path):
     print("Reading son from (file_path}")
@@ -76,11 +76,19 @@ class BaseAgentWorkflow:
                     "input_schema": dict
                 }
         """
+        formatted_tool = {
+            "type": "function",
+            "function": {
+                "name": tool["name"],
+                "description": tool["description"],
+                "parameters": tool["parameters"]
+            }
+        }
         # Add tool to tools list
-        self.llm_state.tools.append(tool)
+        self.tools.append(formatted_tool)
         
         # Update LLM state tools
-        self.llm_state.tools = self.llm_state.tools
+        self.llm_state.tools = self.tools
         
         print(f"Registered new tool: {tool['name']}")
 
@@ -200,7 +208,7 @@ class BaseAgentWorkflow:
                     run_id=params.run_id
                 )
                 result = await workflow.execute_activity(
-                    "calculator_tool",
+                    "calculator",
                     calculator_params,
                     schedule_to_close_timeout=timedelta(hours=2),
                     retry_policy=RetryPolicy(maximum_attempts=1),
