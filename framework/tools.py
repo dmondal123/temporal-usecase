@@ -38,23 +38,6 @@ def send_agents_message(enums: list[str]) -> dict:
             }
         }
 
-def my_custom_tool() -> dict:
-    return {
-        "name": "my_custom_tool",
-        "description": "Description of what the tool does",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "param1": {
-                    "type": "string",
-                    "description": "Description of parameter 1"
-                },
-                # ... other parameters ...
-            },
-            "required": ["param1"],
-        }
-    }
-
 def calculator_tool() -> dict:
     return {
         "name": "calculator",

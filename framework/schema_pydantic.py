@@ -1,10 +1,22 @@
-from typing import Any, Dict, Optional, Type, get_type_hints
+from typing import Any, Dict, Optional, Type, Literal, get_type_hints
 from pydantic import BaseModel, create_model, Field
 import inspect
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
 load_dotenv()
+
+class ToolFunctionInterface(BaseModel):
+    name: str
+    description: str
+    parameters: Type[BaseModel]
+
+    def invoke(self, params: Any, *args, **kwargs):
+        raise NotImplementedError("invoke() not implemented")
+
+class Tool(BaseModel):
+    type: Literal["function"] = "function"
+    function: ToolFunctionInterface
 
 def generate_parameter_description(name: str, type_hint: Any = None, is_tool: bool = False) -> str:
     """Generate a natural description using Claude."""
@@ -28,8 +40,14 @@ def generate_parameter_description(name: str, type_hint: Any = None, is_tool: bo
     
     return message.content[0].text.strip("'\"")
 
-def generate_tool_schema(func, description: str = None) -> Dict[str, Any]:
-    """Generate a tool schema from a function signature using Pydantic."""
+def generate_tool_schema(func, description: str = None, schema_description: str = None) -> Dict[str, Any]:
+    """Generate a tool schema from a function signature using Pydantic.
+    
+    Args:
+        func: The function to generate schema for
+        description: Description of the tool's purpose
+        schema_description: Description of the schema structure
+    """
     sig = inspect.signature(func)
     type_hints = get_type_hints(func)
     
@@ -48,6 +66,7 @@ def generate_tool_schema(func, description: str = None) -> Dict[str, Any]:
         fields[param_name] = (
             param_type,
             Field(
+                title=param_name.title(),
                 description=param_description,
                 default=... if is_required else param.default
             )
@@ -58,14 +77,37 @@ def generate_tool_schema(func, description: str = None) -> Dict[str, Any]:
         description = generate_parameter_description(func.__name__, is_tool=True)
     
     # Create a Pydantic model for the input schema
-    InputModel = create_model(f"{func.__name__}Input", **fields)
+    InputModel = create_model(
+        f"{func.__name__}Input",
+        __config__=type('Config', (), {
+            'json_schema_extra': {
+                'description': schema_description
+            } if schema_description else {}
+        }),
+        **fields
+    )
+    
+    # Create the ToolFunctionInterface instance
+    tool_function = ToolFunctionInterface(
+        name=func.__name__,
+        description=description,
+        parameters=InputModel
+    )
+    
+    # Create the Tool instance
+    tool = Tool(function=tool_function)
     
     # Generate the complete schema
-    return {
+    schema = {
         "name": func.__name__,
         "description": description,
-        "input_schema": InputModel.model_json_schema()
+        "input_schema": InputModel.model_json_schema(),
     }
+    
+    if schema_description:
+        schema["schema_description"] = schema_description
+    
+    return schema
 
 def create_schema_function(func, description: str = None) -> callable:
     """Creates a new function that returns the JSON schema."""
@@ -98,10 +140,29 @@ def save_schema_function(func, output_path: str, description: str = None):
 
 # Example usage:
 if __name__ == "__main__":
-    def send_operator_message(thinking: str, operator_message: str) -> str:
-        """Process agent messages with thinking step."""
+    from typing import TypedDict, Union
+
+    class AgentMessage(TypedDict):
+        to_id: object
+        message: str
+        agent_type: str
+
+    def schedule_reminder(thinking: str, time: int, message: str) -> None:
         pass
     
-    schema = generate_tool_schema(send_operator_message)
-    schema_func = create_schema_function(send_operator_message)
-    save_schema_function(send_operator_message, "tool_2.py")
+    tool_description = "Use this tool ONLY when absolutely necessary, i.e., when you cannot proceed without critical information or assistance from other agents. This should be a last resort when all other options have been exhausted."
+    schema_description = "Schedule yourself reminders tp follow up on tasks or messages. The reminder will be sent to you at the specified time."
+    
+    #   schema = generate_tool_schema(
+    #    schedule_reminder,
+    #    schema_description=schema_description
+    #)
+    #schema_func = create_schema_function(
+    #    schedule_reminder,
+    #    description=schema_description
+    #)
+    save_schema_function(
+        schedule_reminder,
+        "schedule_reminder.py",
+        description=schema_description
+    )
