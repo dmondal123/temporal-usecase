@@ -1,10 +1,12 @@
 from typing import get_type_hints, Any, Dict, List, Optional, Union, TypedDict
-from pydantic import BaseModel, create_model
+from pydantic import BaseModel, create_model, Field
 import inspect
 from dataclasses import is_dataclass, fields
 from anthropic import Anthropic
 import os
 from dotenv import load_dotenv
+from langchain.tools import Tool, ToolFunctionInterface
+import json
 
 load_dotenv()
 
@@ -108,114 +110,88 @@ def generate_parameter_description(name: str, type_hint: Any = None, is_tool: bo
 
 def generate_tool_schema(func, description: str = None) -> Dict[str, Any]:
     """
-    Generate a tool schema from a function signature.
-    
-    Args:
-        func: The function to generate a schema for
-        description: Description of the tool's purpose. If None, will be generated.
-    
-    Returns:
-        dict: The tool schema
+    Generate a tool schema from a function signature using Pydantic.
+    Returns schema in exact format required by Anthropic.
     """
     sig = inspect.signature(func)
     type_hints = get_type_hints(func)
     
-    properties = {}
-    required = []
-    
-    # Parse docstring for parameter descriptions
-    param_descriptions = {}
-    if func.__doc__:
-        docstring_lines = func.__doc__.split('\n')
-        for line in docstring_lines:
-            for param_name in sig.parameters:
-                param_marker = f":param {param_name}:"
-                if param_marker in line:
-                    param_descriptions[param_name] = line.split(param_marker)[1].strip()
-    
+    # Create field definitions for the parameters model
+    fields = {}
     for param_name, param in sig.parameters.items():
-        if param.name == 'self':  # Skip self for class methods
+        if param_name == 'self':
             continue
             
         param_type = type_hints.get(param_name, Any)
-        param_schema = get_type_schema(param_type)
+        param_description = generate_parameter_description(param_name, param_type)
         
-        # Add parameter description from docstring or generate using Claude
-        if param_name in param_descriptions:
-            param_schema['description'] = param_descriptions[param_name]
-        else:
-            param_schema['description'] = generate_parameter_description(param_name, param_type)
-        
-        properties[param_name] = param_schema
-        
-        # If parameter has no default value, it's required
-        if param.default == inspect.Parameter.empty:
-            required.append(param_name)
+        fields[param_name] = (
+            param_type,
+            Field(
+                description=param_description,
+                title=param_name.title(),
+                default=... if param.default == inspect.Parameter.empty else param.default
+            )
+        )
     
     # Generate tool description if not provided
     if description is None:
         description = generate_parameter_description(func.__name__, is_tool=True)
     
-    return {
+    # Create the Pydantic model for parameters
+    ParametersModel = create_model(
+        f"{func.__name__}Parameters",
+        **fields
+    )
+    
+    # Get the JSON schema from the Pydantic model
+    parameters_schema = ParametersModel.model_json_schema()
+    
+    # Create the exact schema format required
+    schema = {
         "name": func.__name__,
         "description": description,
-        "input_schema": {
+        "parameters": {
             "type": "object",
-            "properties": properties,
-            "required": required,
-            "additionalProperties": False
+            "properties": {
+                name: {
+                    "type": prop.get("type", "string"),  # default to string if type not specified
+                    "description": prop.get("description", ""),
+                    "title": prop.get("title", name.title())
+                }
+                for name, prop in parameters_schema.get("properties", {}).items()
+            },
+            "required": parameters_schema.get("required", [])
         }
     }
+    
+    # Validate JSON serialization
+    try:
+        json.dumps(schema)
+    except Exception as e:
+        raise ValueError(f"Schema is not JSON-serializable: {e}")
+    
+    return schema
 
 def create_schema_function(func, description: str = None) -> callable:
-    """
-    Creates a new function that returns the JSON schema for the given function.
-    
-    Args:
-        func: The function to generate a schema for
-        description: Optional description of the tool's purpose
-    
-    Returns:
-        callable: A new function named the same as the input function that returns the JSON schema
-    """
-    import json
-    
-    # Generate the schema
+    """Creates a new function that returns the JSON schema."""
     schema = generate_tool_schema(func, description)
-    schema_str = json.dumps(schema, indent=2)
     
-    # Create the function definition
     exec_str = f"""def {func.__name__}():
-    return '''{schema_str}'''"""
+    return {schema}"""
     
-    # Create namespace for exec
     namespace = {}
     exec(exec_str, namespace)
-    
-    # Return the created function
     return namespace[func.__name__]
 
 def save_schema_function(func, output_path: str, description: str = None):
-    """
-    Creates and saves a function that returns the JSON schema to a new file.
-    
-    Args:
-        func: The function to generate a schema for
-        output_path: Path where the new function should be saved
-        description: Optional description of the tool's purpose
-    """
-    import json
-    
-    # Generate the schema
+    """Creates and saves a function that returns the JSON schema to a new file."""
     schema = generate_tool_schema(func, description)
-    schema_str = json.dumps(schema, indent=2)
     
-    # Create the function code
     function_code = f"""def {func.__name__}():
-    return '''{schema_str}'''
+    return {schema}
 """
     
-    # Write to file
     with open(output_path, 'w') as f:
         f.write(function_code)
 
@@ -238,7 +214,6 @@ if __name__ == "__main__":
     )
     
     # Print the generated schema
-    import json
     #print(json.dumps(schema, indent=2))
 
     schema_func = create_schema_function(send_opeator_message)

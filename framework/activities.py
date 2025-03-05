@@ -62,6 +62,7 @@ class CalculatorParams:
     operation: str  # "add", "subtract", "multiply", "divide"
     a: float
     b: float
+    output: float
 
 @observe
 @activity.defn
@@ -195,16 +196,16 @@ async def schedule_tool(params: ScheduleParams) -> str:
 async def my_custom_activity(params: CalculatorParams) -> str:
     """Performs basic arithmetic operations."""
     if params.operation == "add":
-        result = params.a + params.b
+        params.output = params.a + params.b
     elif params.operation == "subtract":
-        result = params.a - params.b
+        params.output = params.a - params.b
     elif params.operation == "multiply":
-        result = params.a * params.b
+        params.output = params.a * params.b
     elif params.operation == "divide":
         if params.b == 0:
             return "Error: Cannot divide by zero"
-        result = params.a / params.b
+        params.output = params.a / params.b
     else:
         return f"Error: Unknown operation '{params.operation}'"
     
-    return f"Result of {params.a} {params.operation} {params.b} = {result}"
+    return f"Result of {params.a} {params.operation} {params.b} = {params.output}"

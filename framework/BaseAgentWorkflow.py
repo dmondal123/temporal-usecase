@@ -140,6 +140,7 @@ class BaseAgentWorkflow:
             agent_messages = tool_call_llm_response["input"].get("agent messages", []) 
             operator_message = tool_call_llm_response["input"].get("operator message", None)
             schedule_reminder_time = tool_call_llm_response("input").get("time", None)
+            cal_message = tool_call_llm_response("input").get("output", None)
             if thinking:
                 print("Thinking:", thinking)
             if agent_messages:
@@ -192,6 +193,20 @@ class BaseAgentWorkflow:
                     )
                 )
                 tool_response_string += "Reminder set." 
+            if cal_message:
+                calculator_params = CalculatorParams(
+                    output=cal_message,
+                    user_id=self.user_id,
+                    run_id=params.run_id
+                )
+                result = await workflow.execute_activity(
+                    "calculator_tool",
+                    calculator_params,
+                    schedule_to_close_timeout=timedelta(hours=2),
+                    retry_policy=RetryPolicy(maximum_attempts=1),
+                )
+                tool_response_string += result
+
         return tool_id, tool_response_string
                     
     async def wait_for_new_message(self):

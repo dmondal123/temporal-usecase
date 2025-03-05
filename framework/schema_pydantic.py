@@ -46,7 +46,7 @@ def generate_parameter_description(name: str, type_hint: Any = None, is_tool: bo
     
     return message.content[0].text.strip("'\"")
 
-def generate_tool_schema(func, description: str = None, schema_description: str = None, enums: list[str] = None) -> Dict[str, Any]:
+def generate_tool_schema(func, description: str = None, schema_description: str = None, enums: Dict[str, list] = None) -> Dict[str, Any]:
     """Generate a tool schema from a function signature using Pydantic."""
     sig = inspect.signature(func)
     type_hints = get_type_hints(func)
@@ -60,10 +60,18 @@ def generate_tool_schema(func, description: str = None, schema_description: str 
         param_type = type_hints.get(param_name, Any)
         param_description = generate_parameter_description(param_name, param_type)
         
+        field_def = {
+            "type": "number" if param_type in (int, float) else "string",
+            "description": param_description
+        }
+        
+        # Add enums if provided for this parameter
+        if enums and param_name in enums:
+            field_def["enum"] = enums[param_name]
+        
         fields[param_name] = (
             param_type,
             Field(
-                title=param_name.title(),
                 description=param_description,
                 default=... if param.default == inspect.Parameter.empty else param.default
             )
@@ -76,24 +84,33 @@ def generate_tool_schema(func, description: str = None, schema_description: str 
     # Create the Pydantic model for the input schema
     InputModel = create_model(
         f"{func.__name__}Input",
-        __config__=type('Config', (), {
-            'json_schema_extra': {
-                'description': schema_description
-            } if schema_description else {}
-        }),
         **fields
     )
     
-    # Generate the complete schema
+    # Generate the simplified schema
     schema = {
-        "name": func.__name__,
+        "name": func.__name__.replace("_tool", ""),
         "description": description,
-        "input_schema": InputModel.model_json_schema(),
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
     }
     
-    # Add enums to the schema if provided
-    #if enums and func.__name__ == 'send_agents_message':
-       # schema["input_schema"]["properties"]["agent_messages"]["items"]["properties"]["to_id"]["enum"] = enums
+    # Convert Pydantic schema to simplified format
+    pydantic_schema = InputModel.model_json_schema()
+    for prop_name, prop in pydantic_schema.get("properties", {}).items():
+        schema["parameters"]["properties"][prop_name] = {
+            "type": prop.get("type", "string"),
+            "description": prop.get("description", "")
+        }
+        if prop_name in pydantic_schema.get("required", []):
+            schema["parameters"]["required"].append(prop_name)
+        
+        # Add enums if they exist for this parameter
+        if enums and prop_name in enums:
+            schema["parameters"]["properties"][prop_name]["enum"] = enums[prop_name]
     
     return schema
 
@@ -128,16 +145,18 @@ def save_schema_function(func, output_path: str, description: str = None, enums:
 
 # Example usage:
 if __name__ == "__main__":
-    def send_agents_message(thinking: str, agent_messages: list[AgentMessage]) -> None:
+    def calculator_tool(operation: str, a: float, b: float) -> None:
         pass
     
-    tool_description = "Use this tool ONLY when absolutely necessary, i.e., when you cannot proceed without critical information or assistance from other agents. This should be a last resort when all other options have been exhausted."
-    schema_description = "This schema defines the structure for sending messages between agents, including the required thinking process and message format."
+    tool_description = "A calculator tool for performing basic arithmetic operations."
+    enums = {
+        "operation": ["+", "-", "*", "/"]
+    }
     
-    # Generate send_agents_message schema with enums parameter
+    # Generate calculator tool schema
     save_schema_function(
-        send_agents_message,
-        "tool_2.py",
+        calculator_tool,
+        "calculator_tool.py",
         description=tool_description,
-        enums="enums"  # This will be used as a parameter name in the generated function
+        enums=enums
     )
