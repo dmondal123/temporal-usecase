@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Type, Literal, get_type_hints
+from typing import Any, Dict, Optional, Type, Literal, get_type_hints, TypedDict, Union
 from pydantic import BaseModel, create_model, Field
 import inspect
 from anthropic import Anthropic
@@ -124,7 +124,7 @@ def create_schema_function(func, description: str = None) -> callable:
     exec(exec_str, namespace)
     return namespace[func.__name__]
 
-def save_schema_function(func, output_path: str, description: str = None):
+def save_schema_function(func, output_path: str, description: str = None, enums: list[str] = None):
     """Creates and saves a function that returns the JSON schema to a new file."""
     import json
     
@@ -143,26 +143,34 @@ if __name__ == "__main__":
     from typing import TypedDict, Union
 
     class AgentMessage(TypedDict):
-        to_id: object
+        to_id: object  # This will be dynamically created with the enum values
         message: str
         agent_type: str
 
-    def schedule_reminder(thinking: str, time: int, message: str) -> None:
+    def create_agent_message_type(enums: list[str]):
+        """Creates an AgentMessage type with the correct enum values for to_id"""
+        return TypedDict('AgentMessage', {
+            'to_id': Literal[tuple(enums)],  # Convert enums list to Literal type
+            'message': str,
+            'agent_type': str
+        })
+
+    # Example enums for send_agents_message
+    agent_ids = ["agent1", "agent2", "agent3"]
+    
+    # Create the AgentMessage type with the correct enum values
+    DynamicAgentMessage = create_agent_message_type(agent_ids)
+    
+    def send_agents_message(thinking: str, agent_messages: list[DynamicAgentMessage]) -> None:
         pass
     
     tool_description = "Use this tool ONLY when absolutely necessary, i.e., when you cannot proceed without critical information or assistance from other agents. This should be a last resort when all other options have been exhausted."
-    schema_description = "Schedule yourself reminders tp follow up on tasks or messages. The reminder will be sent to you at the specified time."
+    schema_description = "This schema defines the structure for sending messages between agents, including the required thinking process and message format."
     
-    #   schema = generate_tool_schema(
-    #    schedule_reminder,
-    #    schema_description=schema_description
-    #)
-    #schema_func = create_schema_function(
-    #    schedule_reminder,
-    #    description=schema_description
-    #)
+    # Generate and save schemas
     save_schema_function(
-        schedule_reminder,
-        "schedule_reminder.py",
-        description=schema_description
+        send_agents_message,
+        "tool_2.py",
+        description=tool_description,
+        enums=agent_ids
     )
