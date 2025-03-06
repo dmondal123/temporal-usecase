@@ -148,7 +148,7 @@ class BaseAgentWorkflow:
             agent_messages = tool_call_llm_response["input"].get("agent messages", []) 
             operator_message = tool_call_llm_response["input"].get("operator message", None)
             schedule_reminder_time = tool_call_llm_response("input").get("time", None)
-            cal_message = tool_call_llm_response("input").get("output", None)
+            cal_message = tool_call_llm_response("input").get("???", None)
             if thinking:
                 print("Thinking:", thinking)
             if agent_messages:
