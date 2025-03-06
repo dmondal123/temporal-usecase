@@ -260,4 +260,9 @@ class BaseAgentWorkflow:
         print("received Agent message: ", received_message)
         self. input_message_queue.append(received_message)
 
+    @workflow.signal
+    def register_tool_signal(self, tool: dict) -> None:
+        """Signal to register a new tool with the workflow agent."""
+        self.register_tool(tool)
+
 #definit (self, params: InvocationParams, systen jesg-"", agents None, language "English", persona type)

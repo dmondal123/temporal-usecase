@@ -63,6 +63,12 @@ class CalculatorParams:
     a: float
     b: float
 
+@dataclass
+class RegisterToolParams:
+    workflow_id: str
+    tool: dict
+    task_queue: str
+
 @observe
 @activity.defn
 async def llm_call(params: LLMState) -> dict:
@@ -208,3 +214,17 @@ async def calculator(params: CalculatorParams) -> str:
         return f"Error: Unknown operation '{params.operation}'"
     
     return f"Result of {params.a} {params.operation} {params.b} = {result}"
+
+@activity.defn
+async def register_tool_activity(params: RegisterToolParams) -> str:
+    from temporalio.client import Client
+    import os
+    from dotenv import load_dotenv
+    load_dotenv()
+    temporal_address = os.environ.get("TEMPORAL_ADDRESS")
+    client = await Client.connect(temporal_address)
+    
+    workflow_handle = client.get_workflow_handle(params.workflow_id)
+    await workflow_handle.signal("register_tool_signal", params.tool)
+    
+    return f"Tool registered for workflow {params.workflow_id}"
