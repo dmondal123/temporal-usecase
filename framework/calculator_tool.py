@@ -1,17 +1,17 @@
-def calculator_tool():
-    return {
-        "name": "calculator",
-        "description": "Perform basic arithmetic calculations",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "operation": {
-                    "type": "string",
-                    "enum": ["add", "subtract", "multiply", "divide"]
-                },
-                "a": {"type": "number"},
-                "b": {"type": "number"}
-            },
-            "required": ["operation", "a", "b"]
-        }
-    }
+def calculator():
+    return '''{
+  "name": "calculator",
+  "description": "A calculator tool for performing basic arithmetic operations.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "params": {
+        "type": "string",
+        "description": "CalculatorParams is an object containing input values required for performing calculations in a calculator application."
+      }
+    },
+    "required": [
+      "params"
+    ]
+  }
+}'''

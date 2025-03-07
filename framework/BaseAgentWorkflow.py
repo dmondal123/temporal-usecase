@@ -148,7 +148,7 @@ class BaseAgentWorkflow:
             agent_messages = tool_call_llm_response["input"].get("agent messages", []) 
             operator_message = tool_call_llm_response["input"].get("operator message", None)
             schedule_reminder_time = tool_call_llm_response("input").get("time", None)
-            cal_message = tool_call_llm_response("input").get("???", None)
+            cal_message = tool_call_llm_response("input").get("expression", None)
             if thinking:
                 print("Thinking:", thinking)
             if agent_messages:
@@ -203,7 +203,7 @@ class BaseAgentWorkflow:
                 tool_response_string += "Reminder set." 
             if cal_message:
                 calculator_params = CalculatorParams(
-                    output=cal_message,
+                    expression=cal_message,
                     user_id=self.user_id,
                     run_id=params.run_id
                 )
@@ -264,5 +264,14 @@ class BaseAgentWorkflow:
     def register_tool_signal(self, tool: dict) -> None:
         """Signal to register a new tool with the workflow agent."""
         self.register_tool(tool)
+
+    @workflow.signal
+    def cal_message_signal(self, message: str) -> None:
+        """Signal handler for calculator messages"""
+        print("Received calculator message:", message)
+        self.input_message_queue.append({
+            "from": "calculator",
+            "message": message
+        })
 
 #definit (self, params: InvocationParams, systen jesg-"", agents None, language "English", persona type)

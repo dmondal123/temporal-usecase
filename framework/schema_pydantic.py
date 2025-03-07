@@ -3,7 +3,7 @@ from pydantic import BaseModel, create_model, Field
 import inspect
 from anthropic import Anthropic
 from dotenv import load_dotenv
-
+from activities import calculator
 load_dotenv()
 
 class ToolFunctionInterface(BaseModel):
@@ -51,7 +51,40 @@ def generate_tool_schema(func, description: str = None, schema_description: str 
     sig = inspect.signature(func)
     type_hints = get_type_hints(func)
     
-    # Create field definitions for the input model
+    # Handle functions that take a Pydantic model as input
+    if len(sig.parameters) == 1 and list(type_hints.values())[0].__base__ == BaseModel:
+        param_model = list(type_hints.values())[0]
+        model_fields = param_model.model_fields
+        
+        # Create the simplified schema
+        schema = {
+            "name": func.__name__,
+            "description": description or generate_parameter_description(func.__name__, is_tool=True),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+        
+        # Add fields directly from the Pydantic model
+        for field_name, field in model_fields.items():
+            field_info = {
+                "type": "string",  # Default to string if type can't be determined
+                "description": field.description or generate_parameter_description(field_name)
+            }
+            
+            # Add enums if provided for this parameter
+            if enums and field_name in enums:
+                field_info["enum"] = enums[field_name]
+            
+            schema["parameters"]["properties"][field_name] = field_info
+            if field.is_required():
+                schema["parameters"]["required"].append(field_name)
+        
+        return schema
+    
+    # Original logic for functions with direct parameters
     fields = {}
     for param_name, param in sig.parameters.items():
         if param_name == 'self':
@@ -145,8 +178,6 @@ def save_schema_function(func, output_path: str, description: str = None, enums:
 
 # Example usage:
 if __name__ == "__main__":
-    def calculator_tool(operation: str, a: float, b: float) -> None:
-        pass
     
     tool_description = "A calculator tool for performing basic arithmetic operations."
     enums = {
@@ -155,7 +186,7 @@ if __name__ == "__main__":
     
     # Generate calculator tool schema
     save_schema_function(
-        calculator_tool,
+        calculator,
         "calculator_tool.py",
         description=tool_description,
         enums=enums

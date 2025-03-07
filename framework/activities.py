@@ -33,9 +33,9 @@ class UserMessageParams:
 class AgentMessageParans:
     to_id: str
     message: str
-    user_id: str = ""
     run_id: str
     agent_type: str
+    user_id: str = ""
     agents: dict = field(default_factory=dict)
 
 @dataclass
@@ -59,9 +59,7 @@ class CustomParams:
 
 @dataclass
 class CalculatorParams:
-    operation: str  # "add", "subtract", "multiply", "divide"
-    a: float
-    b: float
+    expression: str
 
 @dataclass
 class RegisterToolParams:
@@ -198,22 +196,16 @@ async def schedule_tool(params: ScheduleParams) -> str:
     return "Reminder task done"
 
 @activity.defn
-async def calculator(params: CalculatorParams) -> str:
-    """Performs basic arithmetic operations."""
-    if params.operation == "add":
-        result = params.a + params.b
-    elif params.operation == "subtract":
-        result = params.a - params.b
-    elif params.operation == "multiply":
-        result = params.a * params.b
-    elif params.operation == "divide":
-        if params.b == 0:
-            return "Error: Cannot divide by zero"
-        result = params.a / params.b
-    else:
-        return f"Error: Unknown operation '{params.operation}'"
-    
-    return f"Result of {params.a} {params.operation} {params.b} = {result}"
+async def calculator(params: CalculatorParams):
+    import re
+    # Remove any non-digit or non-operator characters from the expression   
+    try:
+        params.expression = re.sub(r'[^0-9+\-*/().]', '', params.expression)
+        # Evaluate the expression using the built-in eval() function
+        result = eval(params.expression)
+        return f"Output of {params.expression} is {result}"
+    except (SyntaxError, ZeroDivisionError, NameError, TypeError, OverflowError):
+        return "Error: Invalid expression"
 
 @activity.defn
 async def register_tool_activity(params: RegisterToolParams) -> str:
