@@ -44,19 +44,21 @@ class BaseAgentWorkflow:
         system_message = agent_config["system_msg"]
         self.input_message_queue = []
         self.user_id = params.user_id
+        
+        # Read config file to get tools
+        config_path = f"agent_configs/{agent_type}_{params.user_id}.json"
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        
+        tools = config.get('tools', [])
+        
         self.llm_state = LLMState(
             user_id=params.user_id,
             persona_type=agent_type,
             run_id=params.run_id,
             messages=[],
             system_message=system_message,
-            tools=[
-                send_agents_message(list(agents.keys())),
-                send_operator_message(language),
-                schedule_reminder(),
-                wait_for_assistance(),
-                tasks_done()
-            ],
+            tools=tools,  # Use tools from config
             agents=agents,
             language=language
         )
@@ -64,7 +66,7 @@ class BaseAgentWorkflow:
         
         # Register the calculator tool using register_tool method
         self.register_tool(calculator_tool())
-    
+
     def register_tool(self, tool: dict) -> None:
         """Register a new tool with the workflow agent.
         
@@ -259,11 +261,6 @@ class BaseAgentWorkflow:
         #A Signal sandler mutates the Workflow state but cannot return a value.
         print("received Agent message: ", received_message)
         self. input_message_queue.append(received_message)
-
-    @workflow.signal
-    def register_tool_signal(self, tool: dict) -> None:
-        """Signal to register a new tool with the workflow agent."""
-        self.register_tool(tool)
 
     @workflow.signal
     def cal_message_signal(self, message: str) -> None:

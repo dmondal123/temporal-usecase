@@ -53,19 +53,9 @@ class ModelOutputParams:
     user_message: str | None = None
 
 @dataclass
-class CustomParams:
-    # Add any necessary parameters for the custom activity
-    pass
-
-@dataclass
 class CalculatorParams:
     expression: str
-
-@dataclass
-class RegisterToolParams:
-    workflow_id: str
-    tool: dict
-    task_queue: str
+    thinking: str
 
 @observe
 @activity.defn
@@ -206,17 +196,3 @@ async def calculator(params: CalculatorParams):
         return f"Output of {params.expression} is {result}"
     except (SyntaxError, ZeroDivisionError, NameError, TypeError, OverflowError):
         return "Error: Invalid expression"
-
-@activity.defn
-async def register_tool_activity(params: RegisterToolParams) -> str:
-    from temporalio.client import Client
-    import os
-    from dotenv import load_dotenv
-    load_dotenv()
-    temporal_address = os.environ.get("TEMPORAL_ADDRESS")
-    client = await Client.connect(temporal_address)
-    
-    workflow_handle = client.get_workflow_handle(params.workflow_id)
-    await workflow_handle.signal("register_tool_signal", params.tool)
-    
-    return f"Tool registered for workflow {params.workflow_id}"

@@ -3,7 +3,7 @@ import os
 from temporalio.client import Client
 from temporalio.worker import Worker
 from BaseAgentWorkflow import BaseAgentWorkflow
-from activities import llm_call, send_message_to_agent_tool, schedule_tool, calculator, register_tool_activity
+from activities import llm_call, send_message_to_agent_tool, schedule_tool, calculator
 
 def ensure_dir(file_path):
     directory = os.path.dirname(file_path)
@@ -28,14 +28,56 @@ class BaseAgent:
     def __init__(self, user_id="", system_msg="", agents=None, language="English", agent_type=""):
         if agents is None:
             agents = {}
-        self.user_id = user_id, 
+        self.user_id = user_id
+        self.agent_type = agent_type
+        self.activities = [llm_call, send_message_to_agent_tool, schedule_tool, calculator]
+        self.tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "send_message_to_agent",
+                    "description": "Send a message to another agent",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "agent_id": {"type": "string"},
+                            "message": {"type": "string"}
+                        },
+                        "required": ["agent_id", "message"]
+                    }
+                }
+            }
+        ]  # Initialize with default tools
+        
         agent_config = {
             "system_msg": __add_context__(system_msg, user_id, agents),
             "agents": agents,
             "Language": language,
-            "user_id": user_id  
+            "user_id": user_id,
+            "tools": self.tools  # Add tools to config
         }
-        write_json(f"agent_configs/{agent_type}_{user_id}.json", agent_config)
+        self.config_path = f"agent_configs/{agent_type}_{user_id}.json"
+        write_json(self.config_path, agent_config)
+
+    def register_tool(self, tool: dict) -> None:
+        """Register a tool configuration for the LLM to use.
+        
+        Args:
+            tool (dict): Tool configuration with name, description, and parameters
+        """
+        
+        # Read current config
+        with open(self.config_path, 'r') as f:
+            config = json.load(f)
+        
+        # Update tools
+        if 'tools' not in config:
+            config['tools'] = []
+        config['tools'].append(tool)
+        
+        # Write updated config
+        write_json(self.config_path, config)
+        print(f"Registered new tool: {tool['name']}")
 
     async def start_worker(self, interrupt_event):
         import os
@@ -45,7 +87,7 @@ class BaseAgent:
             client,
             task_queue=self.user_id + "-queue",
             workflows=[BaseAgentWorkflow],
-            activities=[llm_call, send_message_to_agent_tool, schedule_tool, calculator, register_tool_activity],
+            activities=[llm_call, send_message_to_agent_tool, schedule_tool, calculator],
         )
         print(f"Task queue: {self.user_id}-queue")
         print("\nWorker started, ctrl+c to exit\n")
