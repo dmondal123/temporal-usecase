@@ -12,8 +12,27 @@ def ensure_dir(file_path):
 
 def write_json(file_path, data):
     ensure_dir(file_path)
+    # Convert any non-serializable objects to strings first
+    def serialize(obj):
+        try:
+            json.dumps(obj)
+            return obj
+        except (TypeError, OverflowError):
+            return str(obj)
+            
+    # Recursively handle nested dictionaries and lists
+    def clean_data(d):
+        if isinstance(d, dict):
+            return {k: clean_data(v) for k, v in d.items()}
+        elif isinstance(d, list):
+            return [clean_data(v) for v in d]
+        else:
+            return serialize(d)
+    
+    cleaned_data = clean_data(data)
+    
     with open(file_path, 'w') as json_file:
-        json.dump(data, json_file, indent=4)
+        json.dump(cleaned_data, json_file, indent=4)
     print(f"Agent config written to {os.path.abspath(file_path)}")
 
 def __add_context__(system_msg, user_id, agents):
@@ -87,7 +106,7 @@ class BaseAgent:
             client,
             task_queue=self.user_id + "-queue",
             workflows=[BaseAgentWorkflow],
-            activities=[llm_call, send_message_to_agent_tool, schedule_tool, calculator],
+            activities=[llm_call, send_message_to_agent_tool, schedule_tool, calculator, register_tool_activity],
         )
         print(f"Task queue: {self.user_id}-queue")
         print("\nWorker started, ctrl+c to exit\n")

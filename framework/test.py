@@ -1,106 +1,115 @@
 from openai import OpenAI
-from dataclasses import dataclass
-
-@dataclass
-class CalculatorParams:
-    expression: str
-
-import re
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-MODEL_NAME = "gpt-3.5-turbo"
-def calculator(params: CalculatorParams):
-    import re
-    # Remove any non-digit or non-operator characters from the expression   
+MODEL_NAME = "o3-mini"
+def calculator(operation, num1, num2):
     try:
-        params.expression = re.sub(r'[^0-9+\-*/().]', '', params.expression)
-        # Evaluate the expression using the built-in eval() function
-        result = eval(params.expression)
-        return f"Output of {params.expression} is {result}"
-    except (SyntaxError, ZeroDivisionError, NameError, TypeError, OverflowError):
-        return "Error: Invalid expression"
+        num1 = float(num1)
+        num2 = float(num2)
+        if operation == "add":
+            return num1 + num2
+        elif operation == "subtract":
+            return num1 - num2
+        elif operation == "multiply":
+            return num1 * num2
+        elif operation == "divide":
+            return num1 / num2 if num2 != 0 else "Error: Division by zero"
+        else:
+            return "Error: Invalid operation"
+    except ValueError:
+        return "Error: Invalid numbers"
     
-calculator_tool = [{
-    "type": "function",
-    "function": {
+calculator_tool = [
+    {
         "name": "calculator",
-        "description": "Perform basic arithmetic calculations",
+        "description": "Perform basic arithmetic operations",
         "parameters": {
-        "type": "object",
-        "properties": {
-            "expression": {
-                "type": "string",
-                "description": "The mathematical expression to evaluate"
-            }
-        },
-        "required": ["expression"]
+            "type": "object",
+            "properties": {
+                "operation": {
+                    "type": "string",
+                    "enum": ["add", "subtract", "multiply", "divide"],
+                    "description": "The arithmetic operation to perform"
+                },
+                "num1": {
+                    "type": "number",
+                    "description": "The first number"
+                },
+                "num2": {
+                    "type": "number",
+                    "description": "The second number"
+                },
+            },
+            "required": ["operation", "num1", "num2"]
         }
     }
-}]
+]
+
+file_tool = [
+    {
+        "name": "save_file",
+        "description": "Save content to a file",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "filepath": {
+                    "type": "string",
+                    "description": "The path where the file should be saved"
+                },
+                "content": {
+                    "type": "string",
+                    "description": "The content to write to the file"
+                }
+            },
+            "required": ["filepath", "content"]
+        }
+    }
+]
+
+def save_file(filepath, content):
+    try:
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        
+        # Write the content to the file
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(content)
+        return f"Successfully saved file to {filepath}"
+    except Exception as e:
+        return f"Error saving file: {str(e)}"
 
 def make_query_and_print_result(messages, tools=None):
     response = client.chat.completions.create(
         model=MODEL_NAME,
         messages=messages,
-        max_tokens=1000,
-        tools=tools or [calculator_tool],
-        tool_choice="auto"
+        functions=file_tool,
+        function_call={"name": "save_file"},
+        reasoning_effort="low"
     )
 
     for choice in response.choices:
         message = choice.message
         if message.content:
             print(message.content)
-        if message.tool_calls:
-            for tool_call in message.tool_calls:
-                print(f"Tool: {tool_call.function.name}({tool_call.function.arguments})")
+        if message.function_call:
+            print(f"Tool: {message.function_call.name}({message.function_call.arguments})")
 
     return response
 
 def add_messages(messages, role, content):
     if isinstance(content, str):
         messages.append({"role": role, "content": content})
-    elif hasattr(content, 'tool_calls') and content.tool_calls:
-        # For tool calls from OpenAI response
-        messages.append({
-            "role": role,
-            "content": None,
-            "tool_calls": [
-                {
-                    "id": tool_call.id,
-                    "type": "function",
-                    "function": {
-                        "name": tool_call.function.name,
-                        "arguments": tool_call.function.arguments
-                    }
-                }
-                for tool_call in content.tool_calls
-            ]
-        })
-    else:
-        # Default to content as string if no tool calls
-        messages.append({"role": role, "content": str(content)})
 
 MESSAGES = [
-    {"role": "user", "content": "What's 2 + 4?"}
+    {"role": "system", "content": "You must break down complex calculations into steps using the calculator tool. The calculator can only handle two numbers at a time with basic operations (add, subtract, multiply, divide). Show your work step by step using the calculator tool."},
+    {"role": "user", "content": "What's (50+6*3)* (72 / 8) / (15 - 3 * 2)? Break this down step by step using the calculator tool."}
 ]
 
 response = make_query_and_print_result(MESSAGES)
 
-# Handle the response properly based on whether it's a tool call or regular message
-if response.choices[0].message.tool_calls:
-    add_messages(MESSAGES, "assistant", response.choices[0].message)
-else:
-    add_messages(MESSAGES, "assistant", response.choices[0].message.content)
-
-add_messages(MESSAGES, "user", "Tell me the answer")
-response = make_query_and_print_result(MESSAGES)
-
-if response.choices[0].message.tool_calls:
-    add_messages(MESSAGES, "assistant", response.choices[0].message)
-else:
+if response.choices[0].message.content:
     add_messages(MESSAGES, "assistant", response.choices[0].message.content)
