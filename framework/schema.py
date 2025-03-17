@@ -1,61 +1,26 @@
-from typing import Any, Callable, get_type_hints
+from typing import Any, Type
 from pydantic import BaseModel, Field
-from dataclasses import is_dataclass, fields
-from activities import calculator
+from base import ToolFunctionInterface
 
-def get_type_schema(type_annotation: Any) -> dict:
-    """Convert Python type annotations to JSON schema types."""
-    if type_annotation == str:
-        return {"type": "string"}
-    elif type_annotation == int:
-        return {"type": "number", "format": "integer"}
-    elif type_annotation == float:
-        return {"type": "number"}
-    elif type_annotation == bool:
-        return {"type": "boolean"}
-    elif type_annotation == list:
-        return {"type": "array"}
-    elif type_annotation == dict:
-        return {"type": "object"}
-    # Add more type mappings as needed
-    return {"type": "string"}  # default to string for unknown types
+class CalculatorRequest(BaseModel):
+    expression: str = Field(..., description="The mathematical expression to evaluate")
 
-def generate_schema_from_params(params_class: Any) -> dict:
-    """Generate JSON schema from a dataclass parameters."""
-    if not is_dataclass(params_class):
-        raise ValueError("Input must be a dataclass")
-    
-    properties = {}
-    required = []
-    
-    for field in fields(params_class):
-        field_schema = get_type_schema(field.type)
-        properties[field.name] = field_schema
-        # Assume all fields are required for now
-        required.append(field.name)
-    
-    return {
-        "type": "object",
-        "properties": properties,
-        "required": required
-    }
+class CalculatorTool(ToolFunctionInterface):
+    name: str = "calculator"
+    description: str = "A calculator that can evaluate basic mathematical expressions"
+    parameters: Type[CalculatorRequest] = CalculatorRequest
 
-def create_tool_schema(
-    function: Callable,
-    tool_name: str,
-    description: str
-) -> dict:
-    """Create a complete tool schema for any given activity function."""
-    # Get the first parameter type hint (assuming it's the params class)
-    type_hints = get_type_hints(function)
-    params_class = next(iter(type_hints.values()))
+
+def create_tool_schema(tool_class: Type[ToolFunctionInterface]) -> dict:
+    """Create a complete tool schema for any given tool class."""
+    tool_instance = tool_class()
     
-    # Create a dynamic schema class with the provided values
     schema_dict = {
-        "name": tool_name,
-        "description": description,
-        "input_schema": generate_schema_from_params(params_class),
-        "function": function.__name__
+        "name": tool_instance.name,
+        "description": tool_instance.description,
+        "input_schema": tool_instance.parameters.model_json_schema(),
+        "function": tool_instance.__class__.__name__,
+        "activity_name": tool_instance.name  # Add activity name for workflow execution
     }
     
     class ToolSchema(BaseModel):
@@ -63,15 +28,10 @@ def create_tool_schema(
         description: str
         input_schema: dict
         function: str
+        activity_name: str
     
     return ToolSchema(**schema_dict).model_dump()
 
 # Example usage for calculator
-calculator_schema = create_tool_schema(
-    calculator,
-    "calculator",
-    "A calculator that can evaluate basic mathematical expressions"
-)
-
-# You can now use this for any other activity function as well
+calculator_schema = create_tool_schema(CalculatorTool)
 print(calculator_schema)

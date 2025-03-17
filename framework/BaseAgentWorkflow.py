@@ -150,7 +150,22 @@ class BaseAgentWorkflow:
             agent_messages = tool_call_llm_response["input"].get("agent messages", []) 
             operator_message = tool_call_llm_response["input"].get("operator message", None)
             schedule_reminder_time = tool_call_llm_response("input").get("time", None)
-            cal_message = tool_call_llm_response("input").get("expression", None)
+            tool_input = tool_call_llm_response.get("input", {})
+            tool_name = tool_call_llm_response.get("name")
+            if tool_name in self.tools:
+                tool_config = next(t for t in self.tools if t["function"]["name"] == tool_name)
+                tool_params = {
+                    **tool_input
+                }
+                
+                # Execute the tool activity
+                result = await workflow.execute_activity(
+                    tool_config["activity_name"],
+                    tool_params,
+                    schedule_to_close_timeout=timedelta(hours=2),
+                    retry_policy=RetryPolicy(maximum_attempts=1),
+                )
+                tool_response_string += result
             if thinking:
                 print("Thinking:", thinking)
             if agent_messages:
