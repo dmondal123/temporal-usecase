@@ -49,34 +49,11 @@ async def calculate(input: CalculatorInput) -> float:
 
 
 # Basic workflow that logs and invokes an activity
-@workflow.defn
-class GreetingWorkflow:
-    @workflow.run
-    async def run(self, name: str) -> str:
-        workflow.logger.info("Running workflow with parameter %s" % name)
-        return await workflow.execute_activity(
-            compose_greeting,
-            ComposeGreetingInput("Hello", name),
-            start_to_close_timeout=timedelta(seconds=10),
-        )
-
-
-@workflow.defn
-class CalculatorWorkflow:
-    @workflow.run
-    async def run(self, operation: str, x: float, y: float) -> float:
-        workflow.logger.info(f"Running calculator workflow with operation {operation}, x={x}, y={y}")
-        return await workflow.execute_activity(
-            calculate,
-            CalculatorInput(operation, x, y),
-            start_to_close_timeout=timedelta(seconds=10),
-        )
-
 
 @workflow.defn
 class CombinedWorkflow:
     @workflow.run
-    async def run(self, operation: str, x: float, y: float, name: str) -> dict:
+    async def run(self, operation: str, x: float, y: float, name: str, should_greet: bool) -> dict:
         workflow.logger.info(f"Running combined workflow with operation {operation}, x={x}, y={y}, name={name}")
         
         # Execute calculator activity
@@ -86,17 +63,18 @@ class CombinedWorkflow:
             start_to_close_timeout=timedelta(seconds=10),
         )
         
-        # Execute greeting activity
-        greeting_result = await workflow.execute_activity(
-            compose_greeting,
-            ComposeGreetingInput("Hello", name),
-            start_to_close_timeout=timedelta(seconds=10),
-        )
+        result = {"calculation": calc_result}
         
-        return {
-            "calculation": calc_result,
-            "greeting": greeting_result
-        }
+        # Only execute greeting if should_greet is True
+        if should_greet:
+            greeting_result = await workflow.execute_activity(
+                compose_greeting,
+                ComposeGreetingInput("Hello", name),
+                start_to_close_timeout=timedelta(seconds=10),
+            )
+            result["greeting"] = greeting_result
+        
+        return result
 
 
 async def main():
@@ -115,16 +93,35 @@ async def main():
         activities=[compose_greeting, calculate],
     ):
 
-        # While the worker is running, use the client to run the workflow and
-        # print out its result. Note, in many production setups, the client
-        # would be in a completely separate process from the worker.
-        result = await client.execute_workflow(
-            CombinedWorkflow.run,
-            args=["add", 5, 3, "World"],
-            id="combined-workflow-id",
-            task_queue="hello-activity-task-queue",
-        )
-        print(f"Combined Result: {result}")
+        while True:
+            print("\nCalculator Operations: add, subtract, multiply, divide")
+            print("Type 'exit' to quit")
+            
+            operation = input("Enter operation: ").lower()
+            if operation == 'exit':
+                break
+            
+            if operation not in ["add", "subtract", "multiply", "divide"]:
+                print("Invalid operation!")
+                continue
+            
+            try:
+                x = float(input("Enter first number: "))
+                y = float(input("Enter second number: "))
+            except ValueError:
+                print("Please enter valid numbers!")
+                continue
+            
+            name = input("Enter your name (or press Enter to skip greeting): ")
+            should_greet = bool(name and name.lower() == "hello")
+            
+            result = await client.execute_workflow(
+                CombinedWorkflow.run,
+                args=[operation, x, y, name, should_greet],
+                id=f"combined-workflow-id-{operation}-{x}-{y}",
+                task_queue="hello-activity-task-queue",
+            )
+            print(f"\nResult: {result}")
 
 
 if __name__ == "__main__":
