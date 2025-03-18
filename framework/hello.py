@@ -73,6 +73,32 @@ class CalculatorWorkflow:
         )
 
 
+@workflow.defn
+class CombinedWorkflow:
+    @workflow.run
+    async def run(self, operation: str, x: float, y: float, name: str) -> dict:
+        workflow.logger.info(f"Running combined workflow with operation {operation}, x={x}, y={y}, name={name}")
+        
+        # Execute calculator activity
+        calc_result = await workflow.execute_activity(
+            calculate,
+            CalculatorInput(operation, x, y),
+            start_to_close_timeout=timedelta(seconds=10),
+        )
+        
+        # Execute greeting activity
+        greeting_result = await workflow.execute_activity(
+            compose_greeting,
+            ComposeGreetingInput("Hello", name),
+            start_to_close_timeout=timedelta(seconds=10),
+        )
+        
+        return {
+            "calculation": calc_result,
+            "greeting": greeting_result
+        }
+
+
 async def main():
     # Uncomment the lines below to see logging output
     # import logging
@@ -85,7 +111,7 @@ async def main():
     async with Worker(
         client,
         task_queue="hello-activity-task-queue",
-        workflows=[GreetingWorkflow, CalculatorWorkflow],
+        workflows=[CombinedWorkflow],  # Replace previous workflows with combined one
         activities=[compose_greeting, calculate],
     ):
 
@@ -93,21 +119,12 @@ async def main():
         # print out its result. Note, in many production setups, the client
         # would be in a completely separate process from the worker.
         result = await client.execute_workflow(
-            GreetingWorkflow.run,
-            "World",
-            id="hello-activity-workflow-id",
+            CombinedWorkflow.run,
+            args=["add", 5, 3, "World"],
+            id="combined-workflow-id",
             task_queue="hello-activity-task-queue",
         )
-        print(f"Greeting Result: {result}")
-
-        # Execute calculator workflow
-        calc_result = await client.execute_workflow(
-            CalculatorWorkflow.run,
-            "add", 5, 3,
-            id="calculator-workflow-id",
-            task_queue="hello-activity-task-queue",
-        )
-        print(f"Calculator Result: {calc_result}")
+        print(f"Combined Result: {result}")
 
 
 if __name__ == "__main__":
