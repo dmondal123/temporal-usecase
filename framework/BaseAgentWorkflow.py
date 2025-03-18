@@ -51,6 +51,8 @@ class BaseAgentWorkflow:
             config = json.load(f)
         
         tools = config.get('tools', [])
+        # Get additional_tools from the config (these are the tools added via register_tool)
+        self.additional_tools = [tool for tool in tools if tool not in config.get('default_tools', [])]
         
         self.llm_state = LLMState(
             user_id=params.user_id,
@@ -63,37 +65,6 @@ class BaseAgentWorkflow:
             language=language
         )
         print("BaseAgentWorkflow initialized.")
-        
-        # Register the calculator tool using register_tool method
-        self.register_tool(calculator_tool())
-
-    def register_tool(self, tool: dict) -> None:
-        """Register a new tool with the workflow agent.
-        
-        Args:
-            tool (dict): Tool configuration dictionary that follows the format:
-                {
-                    "name": str,
-                    "description": str, 
-                    "input_schema": dict
-                }
-        """
-        formatted_tool = {
-            "type": "function",
-            "function": {
-                "name": tool["name"],
-                "description": tool["description"],
-                "parameters": tool["parameters"]
-            }
-        }
-        # Add tool to tools list
-        self.tools.append(formatted_tool)
-        
-        # Update LLM state tools
-        self.llm_state.tools = self.tools
-        
-        print(f"Registered new tool: {tool['name']}")
-
 
     @workflow.run
     async def _run_(self, params: InvocationParams) -> dict:
@@ -152,15 +123,14 @@ class BaseAgentWorkflow:
             schedule_reminder_time = tool_call_llm_response("input").get("time", None)
             tool_input = tool_call_llm_response.get("input", {})
             tool_name = tool_call_llm_response.get("name")
-            if tool_name in self.tools:
-                tool_config = next(t for t in self.tools if t["function"]["name"] == tool_name)
+            if tool_name == "calculator":
                 tool_params = {
                     **tool_input
                 }
                 
                 # Execute the tool activity
                 result = await workflow.execute_activity(
-                    tool_config["activity_name"],
+                    tool_name,
                     tool_params,
                     schedule_to_close_timeout=timedelta(hours=2),
                     retry_policy=RetryPolicy(maximum_attempts=1),
@@ -218,19 +188,6 @@ class BaseAgentWorkflow:
                     )
                 )
                 tool_response_string += "Reminder set." 
-            if cal_message:
-                calculator_params = CalculatorParams(
-                    expression=cal_message,
-                    user_id=self.user_id,
-                    run_id=params.run_id
-                )
-                result = await workflow.execute_activity(
-                    "calculator",
-                    calculator_params,
-                    schedule_to_close_timeout=timedelta(hours=2),
-                    retry_policy=RetryPolicy(maximum_attempts=1),
-                )
-                tool_response_string += result
 
         return tool_id, tool_response_string
                     

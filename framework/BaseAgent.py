@@ -50,6 +50,7 @@ class BaseAgent:
         self.user_id = user_id
         self.agent_type = agent_type
         self.activities = [llm_call, send_message_to_agent_tool, schedule_tool, calculator]
+        self.additional_tools = []  # Initialize empty list for additional tools
         self.tools = [
             {
                 "type": "function",
@@ -84,7 +85,7 @@ class BaseAgent:
         Args:
             tool (dict): Tool configuration with name, description, and parameters
         """
-        
+        self.additional_tools.append(tool)
         # Read current config
         with open(self.config_path, 'r') as f:
             config = json.load(f)

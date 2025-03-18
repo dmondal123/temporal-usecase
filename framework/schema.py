@@ -19,16 +19,12 @@ def create_tool_schema(tool_class: Type[ToolFunctionInterface]) -> dict:
         "name": tool_instance.name,
         "description": tool_instance.description,
         "input_schema": tool_instance.parameters.model_json_schema(),
-        "function": tool_instance.__class__.__name__,
-        "activity_name": tool_instance.name  # Add activity name for workflow execution
     }
     
     class ToolSchema(BaseModel):
         name: str
         description: str
         input_schema: dict
-        function: str
-        activity_name: str
     
     return ToolSchema(**schema_dict).model_dump()
 
