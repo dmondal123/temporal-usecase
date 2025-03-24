@@ -1,10 +1,14 @@
 from typing import Any, Type
 from pydantic import BaseModel, Field
-from base import ToolFunctionInterface
 
 class CalculatorRequest(BaseModel):
     """A calculator that can evaluate basic mathematical expressions"""
     expression: str = Field(..., description="The mathematical expression to evaluate")
+
+class ToolFunctionInterface(BaseModel):
+    name: str
+    description: str
+    parameters: Type[BaseModel]
 
 class CalculatorTool(ToolFunctionInterface):
     name: str = "calculator"
@@ -21,10 +25,15 @@ def create_tool_schema(tool_class: Type[ToolFunctionInterface]) -> dict:
         description: str
         input_schema: dict
     
+    schema = tool_instance.parameters.model_json_schema()
+    # Remove the duplicate description from input_schema
+    if "description" in schema:
+        del schema["description"]
+    
     return ToolSchema(
         name=tool_instance.name,
-        description=tool_instance.parameters.__doc__,
-        input_schema=tool_instance.parameters.model_json_schema()
+        description=tool_instance.description,
+        input_schema=schema
     ).model_dump()
 
 # Example usage for calculator
