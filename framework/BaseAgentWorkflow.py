@@ -52,7 +52,7 @@ class BaseAgentWorkflow:
         
         tools = config.get('tools', [])
         # Get additional_tools from the config (these are the tools added via register_tool)
-        self.additional_tools = [tool for tool in tools if tool not in config.get('default_tools', [])]
+        self.additional_tools = config.get('additional_tools', [])
         
         self.llm_state = LLMState(
             user_id=params.user_id,
@@ -123,7 +123,9 @@ class BaseAgentWorkflow:
             schedule_reminder_time = tool_call_llm_response("input").get("time", None)
             tool_input = tool_call_llm_response.get("input", {})
             tool_name = tool_call_llm_response.get("name")
-            if tool_name == "calculator":
+            print("all additional tools: ", self.additional_tools)
+            if tool_name in self.additional_tools:
+                print(f"Calling additional tool: {tool_name}")
                 tool_params = {
                     **tool_input
                 }

@@ -74,7 +74,8 @@ class BaseAgent:
             "agents": agents,
             "Language": language,
             "user_id": user_id,
-            "tools": self.tools  # Add tools to config
+            "tools": self.tools,  # Add tools to config
+            "additional_tools": self.additional_tools
         }
         self.config_path = f"agent_configs/{agent_type}_{user_id}.json"
         write_json(self.config_path, agent_config)

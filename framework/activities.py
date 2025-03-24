@@ -54,8 +54,9 @@ class ModelOutputParams:
 
 @dataclass
 class CalculatorParams:
+    """A calculator that can evaluate basic mathematical expressions"""
+    
     expression: str
-    thinking: str
 
 @observe
 @activity.defn

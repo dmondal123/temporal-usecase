@@ -1,6 +1,7 @@
 import asyncio
 from dataclasses import dataclass
 from datetime import timedelta
+import time
 
 from temporalio import activity, workflow
 from temporalio.client import Client
@@ -77,6 +78,30 @@ class CombinedWorkflow:
         return result
 
 
+def get_user_input():
+    while True:
+        print("\nCalculator Operations: add, subtract, multiply, divide")
+        print("Type 'exit' to quit")
+        
+        operation = input("Enter operation: ").lower()
+        if operation == 'exit':
+            return None  # Explicitly return None to handle exit case
+        
+        if operation not in ["add", "subtract", "multiply", "divide"]:
+            print("Invalid operation!")
+            continue
+        
+        try:
+            x = float(input("Enter first number: "))
+            y = float(input("Enter second number: "))
+        except ValueError:
+            print("Please enter valid numbers!")
+            continue
+        
+        name = input("Enter your name (or press Enter to skip greeting): ")
+
+        return operation, x, y, name
+            
 async def main():
     # Uncomment the lines below to see logging output
     # import logging
@@ -94,31 +119,16 @@ async def main():
     ):
 
         while True:
-            print("\nCalculator Operations: add, subtract, multiply, divide")
-            print("Type 'exit' to quit")
-            
-            operation = input("Enter operation: ").lower()
-            if operation == 'exit':
+            result = get_user_input()
+            if result is None:  # Check for exit condition
                 break
             
-            if operation not in ["add", "subtract", "multiply", "divide"]:
-                print("Invalid operation!")
-                continue
-            
-            try:
-                x = float(input("Enter first number: "))
-                y = float(input("Enter second number: "))
-            except ValueError:
-                print("Please enter valid numbers!")
-                continue
-            
-            name = input("Enter your name (or press Enter to skip greeting): ")
-            should_greet = bool(name and name.lower() == "hello")
+            operation, x, y, name = result
             
             result = await client.execute_workflow(
                 CombinedWorkflow.run,
-                args=[operation, x, y, name, should_greet],
-                id=f"combined-workflow-id-{operation}-{x}-{y}",
+                args=[operation, x, y, name, bool(name)],  # Add should_greet parameter
+                id=f"combined-workflow-id-{operation}-{x}-{y}-{int(time.time())}",
                 task_queue="hello-activity-task-queue",
             )
             print(f"\nResult: {result}")
